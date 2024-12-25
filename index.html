@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Note-Taking App with IndexedDB</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(to right, #e0eafc, #cfdef3);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      width: 80%;
+      max-width: 600px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    input, textarea, button {
+      width: 100%;
+      margin-bottom: 15px;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+    }
+
+    input, textarea {
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    button {
+      background: #4caf50;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    .note {
+      background: rgba(255, 255, 255, 0.8);
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 10px;
+    }
+
+    .note h3 {
+      margin: 0 0 10px;
+    }
+
+    .note p {
+      margin: 0;
+    }
+
+    .note button {
+      background: #f44336;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Note-Taking App</h1>
+    <form id="noteForm">
+      <input type="text" id="noteTitle" placeholder="Title" required />
+      <textarea id="noteContent" placeholder="Content" rows="5" required></textarea>
+      <button type="submit">Add Note</button>
+    </form>
+    
+    <div id="notesContainer"></div>
+  </div>
+
+  <script>
+    let db;
+
+    // Open IndexedDB
+    const request = indexedDB.open("NotesDB", 1);
+
+    request.onupgradeneeded = (event) => {
+      db = event.target.result;
+      const objectStore = db.createObjectStore("notes", { keyPath: "id", autoIncrement: true });
+      objectStore.createIndex("title", "title", { unique: false });
+    };
+
+    request.onsuccess = (event) => {
+      db = event.target.result;
+      displayNotes();
+    };
+
+    request.onerror = (event) => {
+      console.error("Database error:", event.target.errorCode);
+    };
+
+    // Add note to IndexedDB
+    document.getElementById("noteForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const title = document.getElementById("noteTitle").value;
+      const content = document.getElementById("noteContent").value;
+
+      const transaction = db.transaction(["notes"], "readwrite");
+      const objectStore = transaction.objectStore("notes");
+
+      const note = { title, content };
+      objectStore.add(note);
+
+      transaction.oncomplete = () => {
+        document.getElementById("noteForm").reset();
+        displayNotes();
+      };
+    });
+
+    // Display notes from IndexedDB
+    function displayNotes() {
+      const notesContainer = document.getElementById("notesContainer");
+      notesContainer.innerHTML = "";
+
+      const transaction = db.transaction(["notes"], "readonly");
+      const objectStore = transaction.objectStore("notes");
+
+      objectStore.openCursor().onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          const note = cursor.value;
+          const noteElement = document.createElement("div");
+          noteElement.classList.add("note");
+          noteElement.innerHTML = `
+            <h3>${note.title}</h3>
+            <p>${note.content}</p>
+            <button onclick="deleteNote(${note.id})">Delete</button>
+          `;
+          notesContainer.appendChild(noteElement);
+          cursor.continue();
+        }
+      };
+    }
+
+    // Delete note from IndexedDB
+    function deleteNote(id) {
+      const transaction = db.transaction(["notes"], "readwrite");
+      const objectStore = transaction.objectStore("notes");
+
+      objectStore.delete(id);
+
+      transaction.oncomplete = () => {
+        displayNotes();
+      };
+    }
+  </script>
+
+</body>
+</html>
